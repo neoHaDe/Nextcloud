@@ -4,11 +4,14 @@ import subprocess
 import json
 import tempfile
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 
-BOT_TOKEN = "Ну типа токен бота"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 SCRIPT_PATH = r"F:\Scripts\nextcloud_status.py"
 LOG_FILE = r"F:\Scripts\status_log.txt"
 RESULT_FILE = os.path.join(tempfile.gettempdir(), "nextcloud_status_result.json")
