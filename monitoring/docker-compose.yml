@@ -55,7 +55,7 @@ services:
     environment:
       - GF_SERVER_ROOT_URL=https://monitor.nehade.xyz
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=это тоже МОЙ пароль
+      - GF_SECURITY_ADMIN_PASSWORD=StrongPassword123! # Обязательно замените на свой
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
