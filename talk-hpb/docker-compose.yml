@@ -8,11 +8,11 @@ services:
       - "3478:3478/udp"
       - "8181:8081/tcp"   # Порт для Сигнального сервера
     environment:
-      - NC_DOMAIN=nas.nehade.xyz 
-      - TALK_HOST=signal.nehade.xyz 
-      - TURN_SECRET=это
-      - SIGNALING_SECRET=мои
-      - INTERNAL_SECRET=секреты
+      - NC_DOMAIN=nas.nehade.xyz # Ваш домен Nextcloud
+      - TALK_HOST=signal.nehade.xyz # Домен для HPB
+      - TURN_SECRET=${TURN_SECRET}
+      - SIGNALING_SECRET=${SIGNALING_SECRET}
+      - INTERNAL_SECRET=${INTERNAL_SECRET}
       - TZ=Europe/Moscow
       - TALK_PORT=3478
     restart: unless-stopped
