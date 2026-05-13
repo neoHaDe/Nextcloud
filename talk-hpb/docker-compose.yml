@@ -1,0 +1,18 @@
+services:
+  talk:
+    image: ghcr.io/nextcloud-releases/aio-talk:latest
+    container_name: talk_hpb
+    init: true
+    ports:
+      - "3478:3478/tcp"   # Порт для Turn-сервера
+      - "3478:3478/udp"
+      - "8181:8081/tcp"   # Порт для Сигнального сервера
+    environment:
+      - NC_DOMAIN=nas.nehade.xyz 
+      - TALK_HOST=signal.nehade.xyz 
+      - TURN_SECRET=это
+      - SIGNALING_SECRET=мои
+      - INTERNAL_SECRET=секреты
+      - TZ=Europe/Moscow
+      - TALK_PORT=3478
+    restart: unless-stopped
