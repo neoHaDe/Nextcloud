@@ -9,10 +9,10 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     environment:
-      MYSQL_ROOT_PASSWORD: этоМОЙпарольВамненадо
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
-      MYSQL_PASSWORD: этотожененужно
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
 
   # Nextclouf
   nextcloud:
@@ -32,7 +32,7 @@ services:
         exec /entrypoint.sh apache2-foreground
      "
     volumes:
-      - F:/NextcloudData:/var/www/html/data  # монтаж диска, типа для NAS
+      - F:/NextcloudData:/var/www/html/data  # наш NAS-диск
       - F:/SharedNAS:/mnt/nas 
       - nextcloud_config:/var/www/html/config
       - nextcloud_apps:/var/www/html/custom_apps
@@ -43,7 +43,7 @@ services:
       MYSQL_HOST: db
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
-      MYSQL_PASSWORD: этотожененужно
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       PHP_PM_MAX_CHILDREN: 20
       PHP_PM_START_SERVERS: 5
       EXIFTOOL_NO_EXEC: 1
