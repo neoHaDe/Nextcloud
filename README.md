@@ -55,7 +55,6 @@
 
 ## 📁 Связанные репозитории
 
-- **[python-devops-scripts](https://github.com/neoHaDe/python-devops-scripts)** — скрипты автоматизации.
 - **[ansible-playbooks](https://github.com/neoHaDe/ansible-playbooks)** — плейбуки для настройки серверов (в процессе).
 
 ## 📫 Контакты
