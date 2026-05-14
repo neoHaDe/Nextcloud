@@ -93,31 +93,62 @@ cd Nextcloud
 
 ---
 
-## 2. Настройка секретов
+## 2. Проверяем структуру файлов
 
-Все чувствительные данные хранятся в файлах `.env`, которые **не коммитятся в репозиторий**.  
-Перед первым запуском создайте их вручную на основе примеров ниже.
+В корне проекта должны лежать три файла, которые работают вместе:
 
-### 2.1 Основной стек (корень проекта, рядом с `docker-compose.yml`)
+```
+Nextcloud/
+├── docker-compose.yml   # описывает все сервисы
+├── Dockerfile           # собирает образ Nextcloud с нашим скриптом
+├── nas-init.sh          # скрипт выставляет права на папку NAS при старте
+├── Scripts/
+├── Bots/
+└── monitoring/
+```
 
-Создайте файл `.env`:
+---
+
+## 3. Настройка путей к данным
+
+Открой `docker-compose.yml` и замени пути к своим папкам с данными в двух местах — у сервисов `nextcloud` и `nextcloud-cron`:
+
+```yaml
+volumes:
+  - F:/NextcloudData:/var/www/html/data   # папка где хранятся файлы пользователей
+  - F:/SharedNAS:/mnt/nas                 # общая папка (NAS)
+```
+
+Если данные лежат на другом диске или в другой папке — поменяй пути до `:` на свои.
+Часть после `:` не трогай — это путь внутри контейнера.
+
+---
+
+## 4. Настройка секретов
+
+Все пароли и токены хранятся в файлах `.env`, которые **не коммитятся в репозиторий**.
+Перед первым запуском создай их вручную.
+
+### 4.1 Основной стек (корень проекта, рядом с `docker-compose.yml`)
+
+Создай файл `.env`:
 
 ```ini
 MYSQL_ROOT_PASSWORD=ваш_надёжный_пароль_root
 MYSQL_PASSWORD=ваш_пароль_пользователя_nextcloud
 ```
 
-### 2.2 Стек мониторинга (папка `monitoring/`)
+### 4.2 Стек мониторинга (папка `monitoring/`)
 
-Создайте файл `monitoring/.env`:
+Создай файл `monitoring/.env`:
 
 ```ini
 GRAFANA_PASSWORD=ваш_пароль_администратора_grafana
 ```
 
-### 2.3 HPB для Nextcloud Talk (папка `talk-hpb/`, опционально)
+### 4.3 HPB для Nextcloud Talk (папка `talk-hpb/`, опционально)
 
-Создайте файл `talk-hpb/.env`:
+Создай файл `talk-hpb/.env`:
 
 ```ini
 TURN_SECRET=ваш_turn_secret
@@ -125,54 +156,68 @@ SIGNALING_SECRET=ваш_signaling_secret
 INTERNAL_SECRET=ваш_internal_secret
 ```
 
-### 2.4 Telegram-бот (папки `Scripts/` и `Bots/`)
+### 4.4 Telegram-бот (папки `Scripts/` и `Bots/`)
 
-Создайте файл `Scripts/.env` **и** `Bots/.env` с одинаковым содержимым:
+Создай файл `Scripts/.env` **и** `Bots/.env` с одинаковым содержимым:
 
 ```ini
 BOT_TOKEN=токен_вашего_бота_от_BotFather
 ```
 
-> Токен получается у [@BotFather](https://t.me/BotFather) командой `/newbot`.
+Токен получается у @BotFather командой `/newbot`.
 
 ---
 
-## 3. Настройка путей к данным
+## 5. Запуск сервисов
 
-По умолчанию в `docker-compose.yml` пути к хранилищу указаны как `F:/NextcloudData` и `F:/SharedNAS`.  
-Если ваши данные лежат в другом месте — отредактируйте соответствующие строки в `docker-compose.yml`:
+### 5.1 Основные сервисы (Nextcloud, MariaDB, Nginx Proxy Manager)
 
-```yaml
-volumes:
-  - F:/NextcloudData:/var/www/html/data   # ← замените F:/NextcloudData на свой путь
-  - F:/SharedNAS:/mnt/nas                 # ← замените F:/SharedNAS на свой путь
+При **первом запуске** нужно собрать образ из Dockerfile — это делается один раз:
+
+```bash
+docker compose build
+docker compose up -d
 ```
 
----
-
-## 4. Запуск сервисов
-
-### 4.1 Основные сервисы (Nextcloud, MariaDB, Nginx Proxy Manager)
+При последующих запусках `docker compose build` не нужен:
 
 ```bash
 docker compose up -d
 ```
 
-Дождитесь, пока контейнеры перейдут в статус `healthy` / `running`:
+Следим за статусом — все четыре контейнера должны перейти в `healthy`:
 
 ```bash
 docker compose ps
 ```
 
-> ⏳ Первый запуск занимает **1–3 минуты**: Nextcloud инициализирует базу данных.  
-> Пока идёт инициализация, Nginx Proxy Manager вернёт `502 Bad Gateway` — это нормально.
+Первый запуск занимает 2–5 минут: MariaDB инициализирует базу, затем Nextcloud
+дожидается её готовности и только потом стартует сам. Это нормально.
 
-### 4.2 Первоначальная настройка Nextcloud
+### 5.2 Настройка Nginx Proxy Manager
 
-Откройте в браузере `http://localhost:8080` и создайте учётную запись администратора.  
-После этого Nginx Proxy Manager начнёт проксировать запросы корректно.
+1. Открой `http://твой_IP:81`
+2. При первом входе логин `admin@example.com`, пароль `changeme` — сразу смени их
+3. Перейди в **Proxy Hosts → Add Proxy Host** и настрой:
 
-### 4.3 Стек мониторинга (Prometheus, Grafana, cAdvisor, Node Exporter)
+| Поле | Значение |
+|---|---|
+| Domain Names | `nas.твой-домен.xyz` |
+| Forward Hostname | `nextcloud_app` |
+| Forward Port | `80` |
+| Websockets Support | включить |
+
+4. На вкладке **SSL** выпусти сертификат Let's Encrypt
+
+`Forward Hostname` — это именно `nextcloud_app` (имя контейнера), а не `localhost`.
+NPM и Nextcloud общаются напрямую внутри Docker-сети, минуя хост.
+
+### 5.3 Первоначальная настройка Nextcloud
+
+После того как NPM настроен, открой `https://nas.твой-домен.xyz` и создай учётную запись
+администратора. Nextcloud сам подключится к уже готовой базе данных MariaDB.
+
+### 5.4 Стек мониторинга (Prometheus, Grafana, cAdvisor, Node Exporter)
 
 ```bash
 cd monitoring
@@ -180,7 +225,7 @@ docker compose up -d
 cd ..
 ```
 
-### 4.4 HPB для Nextcloud Talk (для групповых звонков, опционально)
+### 5.5 HPB для Nextcloud Talk (опционально)
 
 ```bash
 cd talk-hpb
@@ -188,7 +233,7 @@ docker compose up -d
 cd ..
 ```
 
-### 4.5 Telegram-бот
+### 5.6 Telegram-бот
 
 ```bash
 cd Scripts
@@ -197,20 +242,19 @@ cd ../Bots
 python nextcloud_bot.py
 ```
 
-После запуска отправьте боту команду `/start`, чтобы подписаться на уведомления о падениях контейнеров.
+После запуска отправь боту команду `/start`, чтобы подписаться на уведомления о падениях контейнеров.
 
 ---
 
-## 5. Проверка работоспособности
+## 6. Проверка работоспособности
 
 | Сервис | Адрес | Учётные данные |
 |---|---|---|
-| Nextcloud | `https://ваш-домен` | Те, что были заданы при установке |
-| Nginx Proxy Manager | `http://локальный-IP:81` | `admin@example.com` / пароль задаётся при первом входе |
-| Grafana | `https://monitor.ваш-домен` | Логин `admin`, пароль из `monitoring/.env` |
+| Nextcloud | `https://nas.твой-домен.xyz` | Заданы при установке |
+| Nginx Proxy Manager | `http://твой_IP:81` | Заданы при первом входе |
+| Grafana | `https://monitor.твой-домен.xyz` | Логин `admin`, пароль из `monitoring/.env` |
 | Prometheus | `http://localhost:9090` | Без аутентификации |
 | Telegram-бот | Команда `/status` в чате с ботом | — |
-
 
 ## 📈 Ключевые результаты
 
