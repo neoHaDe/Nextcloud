@@ -100,7 +100,7 @@ cd Nextcloud
 ```
 Nextcloud/
 ├── docker-compose.yml   # описывает все сервисы
-├── Dockerfile           # собирает образ Nextcloud с нашим скриптом
+├── Dockerfile           # собирает образ Nextcloud 
 ├── nas-init.sh          # скрипт выставляет права на папку NAS при старте
 ├── Scripts/
 ├── Bots/
