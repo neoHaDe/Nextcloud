@@ -1,11 +1,10 @@
-
 services:
-  # База данных
+
   db:
     image: mariadb:10.11
     container_name: nextcloud_db
     restart: always
-    command: --transaction-isolation=READ-COMMITTED --log-bin=off --skip-innodb-read-only-compressed
+    command: --transaction-isolation=READ-COMMITTED --log-bin=off
     volumes:
       - db_data:/var/lib/mysql
     environment:
@@ -13,31 +12,24 @@ services:
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    # Healthcheck: nextcloud не стартует пока БД не готова принимать соединения
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
-  # Nextclouf
   nextcloud:
-    image: nextcloud:33.0.3
+    build: .
     container_name: nextcloud_app
     restart: always
-    ports:
-      - "8080:80"   
-    entrypoint:  
-      /bin/sh -c "
-        apt-get update &&
-        apt-get install -y cron &&
-        echo '*/5 * * * * php -f /var/www/html/cron.php' | crontab -u www-data - &&
-        cron &&
-        chown -R 33:33 /mnt/nas &&
-        chmod -R 770 /mnt/nas &&
-        exec /entrypoint.sh apache2-foreground
-     "
     volumes:
-      - F:/NextcloudData:/var/www/html/data  # маунт диска аля NAS
-      - F:/SharedNAS:/mnt/nas 
+      - F:/NextcloudData:/var/www/html/data   # Файлы пользователей
+      - F:/SharedNAS:/mnt/nas                 # Общая папка
       - nextcloud_config:/var/www/html/config
       - nextcloud_apps:/var/www/html/custom_apps
       - tmp_volume:/tmp
-    
     environment:
       NEXTCLOUD_TRUSTED_DOMAINS: "nas.nehade.xyz localhost 127.0.0.1"
       MYSQL_HOST: db
@@ -48,21 +40,50 @@ services:
       PHP_PM_START_SERVERS: 5
       EXIFTOOL_NO_EXEC: 1
     depends_on:
-      - db
+      db:
+        condition: service_healthy   # ожидаем запуск бд
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
-  # Nginx Proxy Manager 
+  # ==================== CRON ДЛЯ NEXTCLOUD ====================
+  nextcloud-cron:
+    build: .
+    container_name: nextcloud_cron
+    restart: always
+    entrypoint: /cron.sh
+    volumes:
+      - F:/NextcloudData:/var/www/html/data
+      - F:/SharedNAS:/mnt/nas
+      - nextcloud_config:/var/www/html/config
+      - nextcloud_apps:/var/www/html/custom_apps
+      - tmp_volume:/tmp
+    environment:
+      MYSQL_HOST: db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+      nextcloud:
+        condition: service_healthy   #ждём запуска некстклауд
+
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:2.14.0
     container_name: nginx_pm
     restart: always
     ports:
-      - "80:80"     # HTTP
-      - "81:81"     # Админка NPM
-      - "443:443"   # HTTPS
+      - "80:80"    # HTTP (редиректит на HTTPS)
+      - "443:443"  # HTTPS
+      - "81:81"    # Админка NPM 
     volumes:
       - npm_data:/data
       - npm_letsencrypt:/etc/letsencrypt
-
+ча
 volumes:
   db_data:
   nextcloud_config:
