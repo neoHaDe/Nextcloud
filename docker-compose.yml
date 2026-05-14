@@ -1,5 +1,8 @@
+
+
 services:
 
+  # ==================== БАЗА ДАННЫХ ====================
   db:
     image: mariadb:10.11
     container_name: nextcloud_db
@@ -12,21 +15,23 @@ services:
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    # Healthcheck: nextcloud не стартует пока БД не готова принимать соединения
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+    networks:
+      - nextcloud-net
 
+  # ==================== NEXTCLOUD ====================
   nextcloud:
     build: .
     container_name: nextcloud_app
     restart: always
     volumes:
-      - F:/NextcloudData:/var/www/html/data   # Файлы пользователей
-      - F:/SharedNAS:/mnt/nas                 # Общая папка
+      - F:/NextcloudData:/var/www/html/data
+      - F:/SharedNAS:/mnt/nas
       - nextcloud_config:/var/www/html/config
       - nextcloud_apps:/var/www/html/custom_apps
       - tmp_volume:/tmp
@@ -41,15 +46,17 @@ services:
       EXIFTOOL_NO_EXEC: 1
     depends_on:
       db:
-        condition: service_healthy   # ожидаем запуск бд
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/status.php"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+    networks:
+      - nextcloud-net
 
-  # ==================== CRON ДЛЯ NEXTCLOUD ====================
+  # ==================== NEXTCLOUD CRON ====================
   nextcloud-cron:
     build: .
     container_name: nextcloud_cron
@@ -70,20 +77,134 @@ services:
       db:
         condition: service_healthy
       nextcloud:
-        condition: service_healthy   #ждём запуска некстклауд
+        condition: service_healthy
+    networks:
+      - nextcloud-net
 
+  # ==================== NGINX PROXY MANAGER ====================
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:2.14.0
     container_name: nginx_pm
     restart: always
     ports:
-      - "80:80"    # HTTP (редиректит на HTTPS)
-      - "443:443"  # HTTPS
-      - "81:81"    # Админка NPM 
+      - "80:80"
+      - "443:443"
+      - "81:81"
     volumes:
       - npm_data:/data
       - npm_letsencrypt:/etc/letsencrypt
+    networks:
+      - nextcloud-net   # чтобы проксировать Nextcloud
+      - monitor-net     # чтобы проксировать Grafana
 
+  # ==================== PROMETHEUS ====================
+  prometheus:
+    image: prom/prometheus:v3.3.1
+    container_name: prometheus
+    restart: always
+    volumes:
+      - F:/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - monitor-net
+
+  # ==================== NODE EXPORTER ====================
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    restart: always
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - monitor-net
+
+  # ==================== CADVISOR ====================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: cadvisor
+    restart: always
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8081:8080"
+    networks:
+      - monitor-net
+
+  # ==================== GRAFANA ====================
+  grafana:
+    image: grafana/grafana:12.0.1
+    container_name: grafana
+    restart: always
+    environment:
+      GF_SERVER_ROOT_URL: "https://monitor.nehade.xyz"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+    volumes:
+      - F:/monitoring/grafana:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - monitor-net
+
+  # ==================== PROCESS EXPORTER ====================
+  process-exporter:
+    image: ncabatoff/process-exporter:0.8.7
+    container_name: process-exporter
+    restart: always
+    privileged: true
+    ports:
+      - "9256:9256"
+    command:
+      - '-procfs=/host/proc'
+      - '-children=false'
+    volumes:
+      - /proc:/host/proc:ro
+    networks:
+      - monitor-net
+
+  # ==================== TALK HPB  ====================
+  # Запуск: docker compose --profile talk up -d
+  talk:
+    image: ghcr.io/nextcloud-releases/aio-talk:latest
+    container_name: talk_hpb
+    profiles: ["talk"]
+    init: true
+    restart: unless-stopped
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "8181:8081/tcp"
+    environment:
+      NC_DOMAIN: "nas.nehade.xyz"
+      TALK_HOST: "signal.nehade.xyz"
+      TURN_SECRET: ${TURN_SECRET}
+      SIGNALING_SECRET: ${SIGNALING_SECRET}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      TZ: Europe/Moscow
+      TALK_PORT: 3478
+    networks:
+      - nextcloud-net
+
+# ==================== ТОМА ====================
 volumes:
   db_data:
   nextcloud_config:
@@ -91,3 +212,12 @@ volumes:
   npm_data:
   npm_letsencrypt:
   tmp_volume:
+  prometheus_data:
+  grafana_data:
+
+# ==================== СЕТИ ====================
+networks:
+  nextcloud-net:
+    driver: bridge
+  monitor-net:
+    driver: bridge
