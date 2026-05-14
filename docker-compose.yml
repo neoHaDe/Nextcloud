@@ -83,7 +83,7 @@ services:
     volumes:
       - npm_data:/data
       - npm_letsencrypt:/etc/letsencrypt
-ча
+
 volumes:
   db_data:
   nextcloud_config:
