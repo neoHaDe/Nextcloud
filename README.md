@@ -1,84 +1,118 @@
 # 🏠 Домашний Дата-Центр
 
-**Личное облако, мессенджер и система мониторинга в контейнерах Docker.**
+**Личное облако, мессенджер и система мониторинга в контейнерах Docker с AI-ассистентом.**
 
-[![Tech Stack](https://skillicons.dev/icons?i=linux,docker,nginx,prometheus,grafana,jenkins,git,github)](https://skillicons.dev)
+[![Tech Stack](https://skillicons.dev/icons?i=linux,docker,nginx,prometheus,grafana,git,github,python)](https://skillicons.dev)
 
 ## 🎯 О проекте
 
-Полностью автономная инфраструктура (почти*) для личного облака, развернутая на **Windows 11** с использованием **Docker и Docker Compose**.  
+Полностью* (почти) автономная инфраструктура для личного облака, развернутая на **Windows 11** с использованием **Docker и Docker Compose**.
+
 Проект создан для демонстрации навыков контейнеризации, настройки обратного прокси, мониторинга, интеграции с внешними API и автоматизации с помощью Python.
 
-P.S Проект выполнен самостоятельно, с использованием AI-ассистента для ускорения написания конфигураций и скриптов, а так же для изучения основ по принципу реверс-инжиниринга
+> Проект выполнен самостоятельно, с использованием AI-ассистента для ускорения написания конфигураций и скриптов, а также для изучения основ по принципу реверс-инжиниринга.
 
-## 🧱 Архитектура и взаимодействие сервисов
+---
 
-Все сервисы объединены в единую сеть Docker и управляются через `docker-compose.yml`:
+## 🧱 Архитектура
 
-- **Nextcloud** - центральное облачное хранилище, доступное по HTTPS через собственный домен.
-- **Nextcloud Talk** - корпоративный мессенджер с аудио/видеозвонками (настроен High Performance Backend).
-- **Nginx Proxy Manager** - обратный прокси-сервер с автоматическим выпуском SSL-сертификатов.
-- **MariaDB** - база данных для Nextcloud.
-- **Prometheus + Grafana + cAdvisor + Node Exporter** - система сбора и визуализации метрик.
-- **Python-скрипты** - автоматическая проверка состояния Nextcloud с отправкой отчета в Telegram.
+Все сервисы управляются **единым `docker-compose.yml`** и разделены на две изолированные Docker-сети:
+
+- **nextcloud-net** — Nextcloud, MariaDB, Nginx Proxy Manager, Cron
+- **monitor-net** — Prometheus, Grafana, cAdvisor, Node Exporter, Process Exporter
+
+Nginx Proxy Manager подключён к обеим сетям и является единственной точкой входа снаружи.
+
+```
+Интернет (80/443)
+      │
+      ▼
+Nginx Proxy Manager ──────────────────────────┐
+      │                                        │
+      │ nextcloud-net                          │ monitor-net
+      ▼                                        ▼
+  Nextcloud ◄── Cron                       Grafana
+      │                                        ▲
+      ▼                                        │
+   MariaDB                               Prometheus
+                                          ▲  ▲  ▲
+                                   Node  cAdvisor  Process
+                                 Exporter          Exporter
+```
+
+---
 
 ## 🛠 Технологический стек
 
-| Категория       | Инструменты                                          |
-|-----------------|------------------------------------------------------|
-| 🐳 Контейнеры    | Docker, Docker Compose, Docker Volumes               |
-| 🌐 Веб-сервер    | Nginx (прокси и реверс-прокси), Let's Encrypt                                                |
-| 📊 Мониторинг    | Prometheus, Grafana, cAdvisor, Node Exporter                                                 |
-| 💾 Базы данных   | MariaDB, SQLite                                                                              |
-| 🐍 Скрипты       | Python (requests, python-telegram-bot, subprocess)                                           |
-| 🔗 Интеграции    | Nextcloud API, Telegram Bot API, Gmail (IMAP/SMTP)                                           |
-| ⚙️ Deployment    | Развертывание и управление жизненным циклом контейнеров на основе Docker Compose             |
-| 🧰 Прочее        | Git, GitHub, PowerShell, WSL2                                                                |
+| Категория | Инструменты |
+|---|---|
+| 🐳 Контейнеры | Docker, Docker Compose, Docker Volumes |
+| 🌐 Веб-сервер | Nginx Proxy Manager, Let's Encrypt |
+| 📊 Мониторинг | Prometheus, Grafana, cAdvisor, Node Exporter, Process Exporter, Windows Exporter |
+| 💾 Базы данных | MariaDB |
+| 🐍 Автоматизация | Python, python-telegram-bot, openai SDK |
+| 🤖 AI | GitHub Models (GPT-4o-mini) |
+| 🔗 Интеграции | Nextcloud API, Telegram Bot API, Docker SDK |
+| 🧰 Прочее | Git, GitHub, PowerShell, WSL2 |
 
-## 🤖 Автоматизация и Telegram-бот
+---
 
-Бот выполняет две ключевые функции:
-- Предоставляет сводку о состоянии Nextcloud и Docker-контейнеров по запросу.
-- Автоматически оповещает о падениях контейнеров каждые 5 минут.
+## 🤖 Telegram-бот с AI-ассистентом
 
-### Доступные команды
+Бот мониторит инфраструктуру в реальном времени и использует **GitHub Models (GPT-4o-mini)** для автоматической диагностики проблем.
+
+### Команды
+
 | Команда | Описание |
 |---|---|
-| `/start` | Подписаться на автоматические уведомления о падениях. |
-| `/status` | Получить сводку о текущем состоянии Nextcloud. |
-| `/run_status` | Принудительно запустить проверку Nextcloud и получить отчёт. |
-| `/containers` | Получить список всех Docker-контейнеров с их статусом. |
+| `/start` | Подписаться на автоматические уведомления о падениях контейнеров |
+| `/status` | Текущий статус Nextcloud (версия, режим обслуживания) |
+| `/run_status` | Принудительная проверка Nextcloud с получением отчёта |
+| `/containers` | Список всех Docker-контейнеров и их статусы |
+| `/ask <вопрос>` | Задать произвольный вопрос AI-ассистенту по DevOps |
 
 ### Принцип работы
-1. По команде `/status` или `/run_status` бот запускает `nextcloud_status.py`, который обращается к API Nextcloud и возвращает версию, статус и режим обслуживания.
-2. Команда `/containers` запускает `container_monitor.py`, собирает состояние всех контейнеров через Docker SDK и формирует JSON-отчёт.
-3. Каждые 5 минут бот автоматически сравнивает текущее состояние контейнеров с предыдущим снимком. Если зафиксировано падение (статус изменился с `running` на `exited`), подписчику отправляется тревожное сообщение с именем контейнера и кодом завершения.
+
+**Мониторинг контейнеров** (`container_monitor.py`) — каждые 30 секунд сравнивает текущее состояние контейнеров с предыдущим снимком. При обнаружении падения автоматически отправляет уведомление и запрашивает у AI объяснение и рекомендации.
+
+**Проверка Nextcloud** (`nextcloud_status.py`) — обращается к `/status.php` и возвращает версию, статус установки и режим обслуживания.
+
+**AI-ассистент** — доступен в автоматическом режиме (анализ падений) и вручную через `/ask`.
+
+---
 
 ## 🔒 Безопасность
 
-- Внешнее хранилище `/mnt/nas` смонтировано с правами **`770`** и владельцем **`www-data`** (UID 33). Доступ к данным имеет только процесс Nextcloud.
-- Доступ к Nextcloud и сопутствующим сервисам осуществляется **только по HTTPS** через Nginx Proxy Manager с автоматическим выпуском SSL-сертификатов.
-- Все пароли, токены и секретные ключи вынесены в файл `.env`. В `docker-compose.yml` используются ссылки на переменные окружения (`${MYSQL_PASSWORD}` и т.д.).
-- Для Python-скриптов конфиденциальные данные загружаются из переменных окружения с помощью библиотеки `python-dotenv`.
-## 📸 Как это выглядит
+- Nextcloud доступен **только по HTTPS** через NPM — прямой порт наружу не открыт
+- Внешнее хранилище `/mnt/nas` смонтировано с правами `770`, владелец `www-data` (UID 33)
+- Все секреты хранятся в `.env`, который добавлен в `.gitignore`
+- Версии всех образов зафиксированы — случайное обновление не сломает стек
+- Две изолированные Docker-сети: мониторинг не имеет доступа к данным Nextcloud
+- Конфиги Prometheus и Process Exporter встроены в `docker-compose.yml` — не нужны отдельные файлы на диске
 
-![Grafana Dashboard](screenshots/grafana_dashboard.png)  
-*Базовый дашбоард*
+---
 
-![Nextcloud Files](screenshots/nextcloud_files.png)  
-*Веб-интерфейс Nextcloud с подключенным внешним диском (NAS) и почтовым клиентом.*
+## 📸 Скриншоты
 
-![Nextcloud Talk](screenshots/nextcloud_talk.png)  
-*Видеозвонок через Nextcloud Talk с использованием High Performance Backend.*
+![Grafana Dashboard](screenshots/grafana_dashboard.png)
+*Дашборд Grafana с метриками хоста и контейнеров*
+
+![Nextcloud Files](screenshots/nextcloud_files.png)
+*Веб-интерфейс Nextcloud с подключённым внешним хранилищем*
+
+![Nextcloud Talk](screenshots/nextcloud_talk.png)
+*Видеозвонок через Nextcloud Talk (High Performance Backend)*
+
+---
 
 # 🚀 Быстрый старт
 
 ## 📋 Требования
 
 - Windows 10/11 с WSL2 и Docker Desktop
-- Статический IP-адрес и домен (например, `nextcloud.xyz`)
-- На роутере проброшены порты **80**, **443**, **3478 (TCP/UDP)** на ваш ПК
-- Свободное дисковое пространство: ~20 ГБ
+- Статический IP и домен (например, `nextcloud.xyz`)
+- Проброшены порты **80**, **443**, **3478 (TCP/UDP)** на роутере
+- Свободное место: ~20 ГБ
 
 ---
 
@@ -89,151 +123,135 @@ git clone https://github.com/neoHaDe/Nextcloud.git
 cd Nextcloud
 ```
 
-> Все дальнейшие команды выполняются **из корня репозитория**, если не указано иное.
-
 ---
 
-## 2. Проверяем структуру файлов
-
-В корне проекта должны лежать три файла, которые работают вместе:
+## 2. Проверяем структуру
 
 ```
 Nextcloud/
-├── docker-compose.yml   # описывает все сервисы
-├── Dockerfile           # собирает образ Nextcloud 
-├── nas-init.sh          # скрипт выставляет права на папку NAS при старте
+├── docker-compose.yml        # весь стек + встроенные конфиги Prometheus и Process Exporter
+├── Dockerfile                # образ Nextcloud с nas-init.sh
+├── nas-init.sh               # выставляет права на /mnt/nas при старте
+├── .env.example              # шаблон — скопировать в .env
+├── monitoring/
+│   └── grafana/
+│       ├── dashboards/       # провижининг дашбордов Grafana
+│       └── datasources/      # провижининг источника данных Grafana
 ├── Scripts/
-├── Bots/
-└── monitoring/
+│   ├── container_monitor.py  # мониторинг контейнеров
+│   ├── nextcloud_status.py   # проверка Nextcloud
+│   └── requirements.txt
+└── Bots/
+    └── nextcloud_bot.py      # Telegram-бот с AI
+```
+
+> Конфиги Prometheus и Process Exporter встроены прямо в `docker-compose.yml` —
+> отдельные файлы `prometheus.yml` и `process-exporter-config.yml` для запуска не нужны.
+
+---
+
+## 3. Создаём `.env`
+
+```bash
+cp .env.example .env
+```
+
+Заполни все значения в `.env`:
+
+```ini
+# MariaDB
+MYSQL_ROOT_PASSWORD=надёжный_пароль_root
+MYSQL_PASSWORD=пароль_пользователя_nextcloud
+
+# Grafana
+GRAFANA_PASSWORD=пароль_grafana
+
+# Telegram-бот
+BOT_TOKEN=токен_от_BotFather
+
+# AI-ассистент (GitHub Models)
+# Получить: https://github.com/settings/tokens → Generate new token
+GITHUB_TOKEN=твой_github_personal_access_token
+
+# Talk HPB (только при запуске с --profile talk)
+TURN_SECRET=
+SIGNALING_SECRET=
+INTERNAL_SECRET=
 ```
 
 ---
 
-## 3. Настройка путей к данным
+## 4. Настройка путей к данным
 
-Открой `docker-compose.yml` и замени пути к своим папкам с данными в двух местах — у сервисов `nextcloud` и `nextcloud-cron`:
+В `docker-compose.yml` замени пути у сервисов `nextcloud` и `nextcloud-cron`:
 
 ```yaml
 volumes:
-  - F:/NextcloudData:/var/www/html/data   # папка где хранятся файлы пользователей
-  - F:/SharedNAS:/mnt/nas                 # общая папка (NAS)
+  - F:/NextcloudData:/var/www/html/data   # ← путь к папке с файлами пользователей
+  - F:/SharedNAS:/mnt/nas                 # ← путь к общей папке
 ```
 
-Если данные лежат на другом диске или в другой папке — поменяй пути до `:` на свои.
-Часть после `:` не трогай — это путь внутри контейнера.
+Часть после `:` — путь внутри контейнера, не трогай.
 
 ---
 
-## 4. Настройка секретов
+## 5. Запуск
 
-Все пароли и токены хранятся в файлах `.env`, которые **не коммитятся в репозиторий**.
-Перед первым запуском создай их вручную.
-
-### 4.1 Основной стек (корень проекта, рядом с `docker-compose.yml`)
-
-Создай файл `.env`:
-
-```ini
-MYSQL_ROOT_PASSWORD=ваш_надёжный_пароль_root
-MYSQL_PASSWORD=ваш_пароль_пользователя_nextcloud
-```
-
-### 4.2 Стек мониторинга (папка `monitoring/`)
-
-Создай файл `monitoring/.env`:
-
-```ini
-GRAFANA_PASSWORD=ваш_пароль_администратора_grafana
-```
-
-### 4.3 HPB для Nextcloud Talk (папка `talk-hpb/`, опционально)
-
-Создай файл `talk-hpb/.env`:
-
-```ini
-TURN_SECRET=ваш_turn_secret
-SIGNALING_SECRET=ваш_signaling_secret
-INTERNAL_SECRET=ваш_internal_secret
-```
-
-### 4.4 Telegram-бот (папки `Scripts/` и `Bots/`)
-
-Создай файл `Scripts/.env` **и** `Bots/.env` с одинаковым содержимым:
-
-```ini
-BOT_TOKEN=токен_вашего_бота_от_BotFather
-```
-
-Токен получается у @BotFather командой `/newbot`.
-
----
-
-## 5. Запуск сервисов
-
-### 5.1 Основные сервисы (Nextcloud, MariaDB, Nginx Proxy Manager)
-
-При **первом запуске** нужно собрать образ из Dockerfile — это делается один раз:
+### Первый запуск:
 
 ```bash
 docker compose build
 docker compose up -d
 ```
 
-При последующих запусках `docker compose build` не нужен:
+### Последующие запуски:
 
 ```bash
 docker compose up -d
 ```
 
-Следим за статусом — все четыре контейнера должны перейти в `healthy`:
+### С Nextcloud Talk HPB:
+
+```bash
+docker compose --profile talk up -d
+```
+
+Проверяем что все контейнеры поднялись:
 
 ```bash
 docker compose ps
 ```
 
 Первый запуск занимает 2–5 минут: MariaDB инициализирует базу, затем Nextcloud
-дожидается её готовности и только потом стартует сам. Это нормально.
+дожидается её готовности. Nginx Proxy Manager в это время вернёт 502 — это нормально.
 
-### 5.2 Настройка Nginx Proxy Manager
+---
+
+## 6. Настройка Nginx Proxy Manager
 
 1. Открой `http://твой_IP:81`
-2. При первом входе логин `admin@example.com`, пароль `changeme` — сразу смени их
-3. Перейди в **Proxy Hosts → Add Proxy Host** и настрой:
+2. Первый вход: `admin@example.com` / `changeme` — сразу смени
+3. **Proxy Hosts → Add Proxy Host:**
 
-| Поле | Значение |
-|---|---|
-| Domain Names | `nas.твой-домен.xyz` |
-| Forward Hostname | `nextcloud_app` |
-| Forward Port | `80` |
-| Websockets Support | включить |
+| Поле | Nextcloud | Grafana |
+|---|---|---|
+| Domain Names | `nas.твой-домен.xyz` | `monitor.твой-домен.xyz` |
+| Forward Hostname | `nextcloud_app` | `grafana` |
+| Forward Port | `80` | `3000` |
+| Websockets Support | ✅ | — |
 
-4. На вкладке **SSL** выпусти сертификат Let's Encrypt
+4. Вкладка **SSL** → выпусти сертификат Let's Encrypt для каждого хоста
 
-`Forward Hostname` — это именно `nextcloud_app` (имя контейнера), а не `localhost`.
-NPM и Nextcloud общаются напрямую внутри Docker-сети, минуя хост.
+---
 
-### 5.3 Первоначальная настройка Nextcloud
+## 7. Первоначальная настройка Nextcloud
 
-После того как NPM настроен, открой `https://nas.твой-домен.xyz` и создай учётную запись
-администратора. Nextcloud сам подключится к уже готовой базе данных MariaDB.
+Открой `https://nas.твой-домен.xyz` и создай учётную запись администратора.
+Nextcloud автоматически подключится к MariaDB.
 
-### 5.4 Стек мониторинга (Prometheus, Grafana, cAdvisor, Node Exporter)
+---
 
-```bash
-cd monitoring
-docker compose up -d
-cd ..
-```
-
-### 5.5 HPB для Nextcloud Talk (опционально)
-
-```bash
-cd talk-hpb
-docker compose up -d
-cd ..
-```
-
-### 5.6 Telegram-бот
+## 8. Запуск Telegram-бота
 
 ```bash
 cd Scripts
@@ -242,41 +260,42 @@ cd ../Bots
 python nextcloud_bot.py
 ```
 
-После запуска отправь боту команду `/start`, чтобы подписаться на уведомления о падениях контейнеров.
+Отправь боту `/start` чтобы подписаться на уведомления.
+Используй `/ask <вопрос>` для обращения к AI-ассистенту.
 
 ---
 
-## 6. Проверка работоспособности
+## 9. Проверка работоспособности
 
-| Сервис | Адрес | Учётные данные |
+| Сервис | Адрес | Доступ |
 |---|---|---|
-| Nextcloud | `https://nas.твой-домен.xyz` | Заданы при установке |
-| Nginx Proxy Manager | `http://твой_IP:81` | Заданы при первом входе |
-| Grafana | `https://monitor.твой-домен.xyz` | Логин `admin`, пароль из `monitoring/.env` |
+| Nextcloud | `https://nas.твой-домен.xyz` | Создаётся при установке |
+| Nginx Proxy Manager | `http://твой_IP:81` | Создаётся при первом входе |
+| Grafana | `https://monitor.твой-домен.xyz` | `admin` / `GRAFANA_PASSWORD` |
 | Prometheus | `http://localhost:9090` | Без аутентификации |
-| Telegram-бот | Команда `/status` в чате с ботом | — |
+| Telegram-бот | `/status` в чате с ботом | — |
 
-## 📈 Ключевые результаты
+---
 
-- ✅ **Автоматическое восстановление** всех контейнеров после сбоев (`restart: always`).
-- ✅ **Мониторинг 10+ ключевых метрик** хоста и контейнеров в реальном времени (CPU, RAM, сеть, диск, топ-процессы).
-- ✅ **Автоматическая проверка состояния Nextcloud** через Telegram-бота с ручным запуском и по расписанию (планировщик Windows).
-- ✅ **Автоматические уведомления о падениях контейнеров**: бот каждые 5 минут сравнивает состояние контейнеров с предыдущим снимком и присылает тревогу при обнаружении падения.
-- ✅ **Настроен HPB для Talk**, что позволяет проводить видеозвонки с 5+ участниками без задержек.
-- ✅ **Интеграция с Gmail (IMAP/SMTP)** для почты, контактов и календарей.
-- ✅ **Управление паролями** через встроенный менеджер Passwords с импортом CSV.
-- ✅ **Безопасность**:
-  - права на внешнее хранилище `770` с владельцем `www-data`;
-  - все секреты вынесены в `.env` (в `.gitignore`);
-  - образы зафиксированы на конкретных версиях (без `latest`);
-  - все соединения извне по HTTPS с Let's Encrypt.
-- ✅ **Полная документация**(наверное): README с архитектурой, стеком, структурой и быстрым стартом; техническая документация в `DOCS.md`; скриншоты интерфейсов.
+## 📈 Результаты
+
+- ✅ Единый `docker-compose.yml` — весь стек одной командой
+- ✅ Автоматическое восстановление контейнеров (`restart: always`)
+- ✅ Nextcloud стартует только после готовности БД (`condition: service_healthy`)
+- ✅ Cron в отдельном контейнере — независим от основного сервиса
+- ✅ Мониторинг хоста и контейнеров: CPU, RAM, диск, сеть, процессы, Windows-метрики
+- ✅ AI автоматически диагностирует падения и отвечает на вопросы
+- ✅ Все секреты в `.env`, образы зафиксированы на версиях
+- ✅ Две изолированные сети, Nextcloud без открытых портов наружу
+- ✅ Конфиги встроены в compose — совместимо с Windows/WSL2 Docker Desktop
+
+---
 
 ## 📁 Связанные репозитории
 
-- **[ansible-playbooks](https://github.com/neoHaDe/ansible-playbooks)** — плейбуки для настройки серверов (в процессе).
+- **[ansible-playbooks](https://github.com/neoHaDe/ansible-playbooks)** — плейбуки для настройки серверов (в процессе)
 
 ## 📫 Контакты
 
 - ✉️ [Email](mailto:nehadebackup@gmail.com)
-- 📬 [Telegram](https://t.me/neHade)  
+- 📬 [Telegram](https://t.me/neHade)
